@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Aura OS</title>
+<script src="https://js.puter.com/v2/"></script>
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-secondary: #f4f4f5;
+    --bg-grouped: #f2f2f7;
+    --surface: #ffffff;
+    --border: #e4e4e7;
+    --text: #000000;
+    --text-muted: #8e8e93;
+    --accent: #000000;
+    --user-bubble: #f4f4f5;
+    
+    /* Rubber & Bouncy Animations */
+    --rubber: cubic-bezier(0.68, -0.4, 0.265, 1.55);
+    --bounce: cubic-bezier(0.175, 0.885, 0.32, 1.2);
+    --smooth: cubic-bezier(0.25, 1, 0.5, 1);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  
+  body { 
+    height: 100vh; background-color: var(--bg); color: var(--text); 
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden; position: relative;
+  }
+
+  /* Rich Paper Texture Overlay */
+  .bg-noise {
+    position: fixed; inset: 0; z-index: -1; opacity: 0.15; pointer-events: none; mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* Header */
+  #header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+    padding: env(safe-area-inset-top, 20px) 16px 12px;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid transparent; transition: border-color 0.3s;
+  }
+  #header.scrolled { border-bottom: 1px solid var(--border); }
+  
+  .hbtn {
+    width: 40px; height: 40px; border-radius: 50%; background: transparent;
+    color: var(--text); display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: transform 0.4s var(--rubber), background 0.2s;
+  }
+  .hbtn:active { transform: scale(0.7); background: var(--bg-secondary); transition: transform 0.1s; }
+
+  .header-center {
+    display: flex; align-items: center; gap: 6px; cursor: pointer;
+    font-size: 16px; font-weight: 600; padding: 6px 16px; border-radius: 20px;
+    transition: transform 0.4s var(--rubber), background 0.2s;
+  }
+  .header-center:active { background: var(--bg-secondary); transform: scale(0.9); transition: transform 0.1s; }
+  .chevron { font-size: 14px; color: var(--text-muted); font-weight: 500; }
+
+  /* Chat Area */
+  #messages {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 90px;
+    overflow-y: auto; padding: 100px 16px 20px;
+    display: flex; flex-direction: column; gap: 24px;
+    scrollbar-width: none; scroll-behavior: smooth;
+  }
+  #messages::-webkit-scrollbar { display: none; }
+
+  /* Empty State / Welcome */
+  #welcome {
+    position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+    display: flex; flex-direction: column; align-items: center; width: 100%; transition: opacity 0.3s;
+  }
+  .logo-center {
+    width: 60px; height: 60px; background: var(--text); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; color: var(--bg);
+    animation: rubberPop 0.8s var(--rubber); box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+  }
+  @keyframes rubberPop {
+    0% { transform: scale(0); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
+
+  /* Bottom Suggestions (Scrollable) */
+  .suggestions-scroll {
+    position: fixed; bottom: 100px; left: 0; right: 0; z-index: 30;
+    overflow-x: auto; display: flex; gap: 10px; padding: 10px 16px 20px;
+    scrollbar-width: none; opacity: 1; transition: opacity 0.3s, transform 0.4s var(--bounce);
+  }
+  .suggestions-scroll::-webkit-scrollbar { display: none; }
+  .suggestion-card {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 14px 16px; border-radius: 16px; flex-shrink: 0; width: 200px;
+    cursor: pointer; transition: transform 0.4s var(--rubber), background 0.2s; 
+    box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+  }
+  .suggestion-card:active { transform: scale(0.9); background: var(--bg-secondary); transition: transform 0.1s; }
+  .sug-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; color: var(--text); }
+  .sug-desc { font-size: 13px; color: var(--text-muted); }
+
+  /* Chat Bubbles */
+  .msg-row { display: flex; flex-direction: column; max-width: 88%; animation: slideUp 0.5s var(--bounce); }
+  .msg-row.user { align-self: flex-end; align-items: flex-end; }
+  .msg-row.ai { align-self: flex-start; align-items: flex-start; max-width: 95%; }
+  
+  @keyframes slideUp { 
+    0% { opacity: 0; transform: translateY(30px) scale(0.9); } 
+    100% { opacity: 1; transform: translateY(0) scale(1); } 
+  }
+
+  .bubble { font-size: 15px; line-height: 1.5; word-break: break-word; white-space: pre-wrap; }
+  .user .bubble { 
+    background: var(--user-bubble); color: var(--text); 
+    padding: 12px 16px; border-radius: 20px; border-bottom-right-radius: 4px;
+  }
+  .ai .bubble { color: var(--text); padding: 4px 0; }
+  
+  .ai-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .ai-avatar { width: 28px; height: 28px; background: var(--text); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--bg); font-size: 14px; }
+  .ai-name { font-size: 15px; font-weight: 600; }
+
+  .bubble-img { max-width: 100%; border-radius: 16px; margin-top: 8px; border: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+
+  /* Dynamic Input Bar (Matches Image) */
+  #inputbar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
+    padding: 10px 16px env(safe-area-inset-bottom, 20px);
+    background: var(--bg);
+  }
+  
+  #file-preview {
+    display: none; align-items: center; gap: 8px; background: var(--surface);
+    border: 1px solid var(--border); padding: 8px 12px; border-radius: 16px;
+    width: fit-content; margin-bottom: 12px; margin-left: 4px; font-size: 13px; font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05); animation: slideUp 0.4s var(--bounce);
+  }
+  #file-preview img { width: 32px; height: 32px; border-radius: 8px; object-fit: cover; }
+  .remove-file { color: var(--text-muted); cursor: pointer; padding: 4px; background: var(--bg-secondary); border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 14px; margin-left: 4px; transition: transform 0.4s var(--rubber); }
+  .remove-file:active { transform: scale(0.6); transition: transform 0.1s; }
+
+  #input-wrap {
+    display: flex; align-items: flex-end; gap: 8px; transition: all 0.3s;
+  }
+  
+  .action-group {
+    display: flex; align-items: center; gap: 6px; padding-bottom: 8px; transition: all 0.3s;
+  }
+  
+  .input-box {
+    flex: 1; background: var(--bg-secondary); border-radius: 24px; padding: 6px 12px 6px 16px;
+    display: flex; align-items: flex-end; gap: 8px; border: 1px solid transparent;
+    transition: all 0.3s var(--smooth);
+  }
+  .input-box:focus-within { border-color: #d4d4d8; background: #ffffff; box-shadow: 0 4px 15px rgba(0,0,0,0.03); }
+
+  .icon-btn {
+    width: 32px; height: 32px; border-radius: 50%; border: none;
+    background: transparent; color: var(--text); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.4s var(--rubber), opacity 0.2s; flex-shrink: 0;
+  }
+  .icon-btn:active { transform: scale(0.6); transition: transform 0.1s; }
+
+  #input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text); font-family: inherit; font-size: 16px;
+    resize: none; max-height: 120px; padding: 10px 0;
+  }
+  #input::placeholder { color: var(--text-muted); }
+  
+  .send-btn-circle {
+    width: 32px; height: 32px; border-radius: 16px; border: none;
+    background: var(--text); color: var(--bg); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.4s var(--rubber), opacity 0.2s; flex-shrink: 0; margin-bottom: 2px;
+  }
+  .send-btn-circle:active { transform: scale(0.7); transition: transform 0.1s; }
+  
+  /* State Toggling for Input */
+  .typing-mode .action-group.left-icons { display: none; }
+  .typing-mode .action-group.right-icons { display: none; }
+  .typing-mode .plus-icon-reveal { display: flex !important; animation: popIn 0.4s var(--rubber); }
+  .typing-mode .send-icon-reveal { display: flex !important; animation: popIn 0.4s var(--rubber); }
+  
+  .plus-icon-reveal, .send-icon-reveal { display: none !important; }
+
+  @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+  input[type="file"] { display: none; }
+
+  /* iOS Style Sheets & Rubber Bounce */
+  #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 90; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+  #overlay.show { opacity: 1; pointer-events: all; }
+
+  .sheet {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+    background: var(--bg-grouped); border-radius: 20px 20px 0 0;
+    transform: translateY(100%); transition: transform 0.5s var(--bounce);
+    max-height: 92vh; display: flex; flex-direction: column;
+  }
+  .sheet.show { transform: translateY(0); }
+  .sheet-header { padding: 16px; display: flex; justify-content: space-between; align-items: center; background: var(--bg-grouped); border-radius: 24px 24px 0 0; flex-shrink: 0; }
+  .sheet-title { font-size: 17px; font-weight: 600; text-align: center; width: 100%; position: absolute; left: 0; z-index: -1; }
+  .close-btn { width: 30px; height: 30px; border-radius: 15px; background: #e5e5ea; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-muted); font-size: 20px; line-height: 1; font-weight: 500; transition: transform 0.4s var(--rubber); z-index: 2; }
+  .close-btn:active { transform: scale(0.7); transition: transform 0.1s; }
+  
+  .sheet-scroll { overflow-y: auto; padding: 0 16px 16px; padding-bottom: env(safe-area-inset-bottom, 30px); }
+
+  /* iOS Grouped Settings List (Matches Image perfectly) */
+  .list-group { background: var(--surface); border-radius: 10px; overflow: hidden; margin-bottom: 24px; }
+  .list-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s; min-height: 48px; }
+  .list-item:active { background: var(--bg-secondary); }
+  .list-item:last-child { border-bottom: none; }
+  .list-item-left { display: flex; align-items: center; gap: 14px; font-size: 16px; color: var(--text); }
+  .list-item-icon { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; color: var(--text); }
+  .list-item-right { color: var(--text-muted); font-size: 16px; display: flex; align-items: center; gap: 8px; }
+  .list-item-arrow { color: #c7c7cc; font-size: 20px; font-weight: 400; }
+  
+  .section-title { font-size: 13px; text-transform: uppercase; color: var(--text-muted); margin: 0 0 8px 16px; font-weight: 500; letter-spacing: -0.5px; }
+
+  /* Inputs in settings */
+  .ios-input { width: 100%; border: none; outline: none; font-size: 16px; color: var(--text-muted); background: transparent; text-align: right; }
+  .ios-input::placeholder { color: var(--text-muted); }
+  
+  .search-bar { width: 100%; background: #e3e3e8; border-radius: 10px; padding: 8px 12px; border: none; outline: none; font-size: 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+  .search-input { border: none; background: transparent; width: 100%; outline: none; font-size: 16px; }
+
+  /* Custom Instructions Modal */
+  .ios-textarea { width: 100%; border: none; outline: none; font-size: 16px; padding: 16px; color: var(--text); background: var(--surface); border-radius: 10px; resize: none; min-height: 150px; }
+
+  /* Typing Dots */
+  .typing { display: flex; gap: 4px; padding: 8px 0; }
+  .typing span { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); animation: bounce 1.4s infinite var(--bounce) both; }
+  .typing span:nth-child(1) { animation-delay: -0.32s; }
+  .typing span:nth-child(2) { animation-delay: -0.16s; }
+</style>
+</head>
+<body>
+
+<div class="bg-noise"></div>
+
+<!-- Header -->
+<div id="header">
+  <div class="hbtn" onclick="openSheet('settings-sheet')">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </div>
+  <div class="header-center" onclick="openSheet('model-sheet')">
+    <span id="active-label">Aura 4</span> <span class="chevron">›</span>
+  </div>
+  <div class="hbtn" onclick="newChat()">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+  </div>
+</div>
+
+<!-- Chat Area -->
+<div id="messages">
+  <div id="welcome">
+    <div class="logo-center">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+    </div>
+  </div>
+</div>
+
+<!-- Suggestions -->
+<div class="suggestions-scroll" id="suggestions">
+  <div class="suggestion-card" onclick="quickSend('Design a database schema for an online merch store.')">
+    <div class="sug-title">Design a database schema</div>
+    <div class="sug-desc">for an online merch store</div>
+  </div>
+  <div class="suggestion-card" onclick="quickSend('Explain airplane turbulence to someone who has never flown. Make it conversational and concise.')">
+    <div class="sug-title">Explain airplane turbulence</div>
+    <div class="sug-desc">to someone 5 years old</div>
+  </div>
+  <div class="suggestion-card" onclick="quickSend('Suggest strategic game mechanics and stylized art directions.')">
+    <div class="sug-title">Suggest game mechanics</div>
+    <div class="sug-desc">focusing on strategy & style</div>
+  </div>
+</div>
+
+<!-- Input Bar -->
+<div id="inputbar">
+  <div id="file-preview">
+    <img id="fp-img" src="" alt="preview">
+    <span id="fp-name">file.jpg</span>
+    <span class="remove-file" onclick="removeAttachedFile()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </span>
+  </div>
+  <div id="input-wrap">
+    
+    <button class="icon-btn plus-icon-reveal" onclick="document.getElementById('file-upload').click()">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    </button>
+    
+    <div class="action-group left-icons">
+      <button class="icon-btn" onclick="document.getElementById('file-upload').click()">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      </button>
+      <button class="icon-btn" onclick="document.getElementById('file-upload').click()">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      </button>
+      <button class="icon-btn" onclick="document.getElementById('file-upload').click()">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      </button>
+    </div>
+
+    <input type="file" id="file-upload" accept="image/*, .txt, .js, .html" onchange="handleFileUpload(event)">
+    
+    <div class="input-box">
+      <textarea id="input" rows="1" placeholder="Message" oninput="handleInput(this)"></textarea>
+      
+      <div class="action-group right-icons">
+        <button class="icon-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
+        <button class="icon-btn" onclick="openSheet('voice-sheet')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></button>
+      </div>
+
+      <button id="send-btn" class="send-btn-circle send-icon-reveal" onclick="send()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<div id="overlay" onclick="closeSheets()"></div>
+
+<!-- MODEL SWITCHER SHEET (BOTTOM TAB W/ SEARCH) -->
+<div class="sheet" id="model-sheet">
+  <div class="sheet-header">
+    <div class="close-btn" style="opacity:0;">×</div>
+    <div class="sheet-title">Models</div>
+    <div class="close-btn" onclick="closeSheets()">×</div>
+  </div>
+  <div class="sheet-scroll">
+    <div class="search-bar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" class="search-input" id="model-search" placeholder="Search models..." oninput="renderModelLists()">
+    </div>
+    
+    <div class="section-title">Built-in (Puter Engine)</div>
+    <div class="list-group" id="builtin-list"></div>
+    
+    <div class="section-title">OpenRouter</div>
+    <div class="list-group" id="or-list"></div>
+  </div>
+</div>
+
+<!-- SETTINGS SHEET (MIRRORS IMAGE) -->
+<div class="sheet" id="settings-sheet">
+  <div class="sheet-header">
+    <div class="close-btn" style="opacity:0;">×</div>
+    <div class="sheet-title">Settings</div>
+    <div class="close-btn" onclick="saveSettings()">×</div>
+  </div>
+  <div class="sheet-scroll">
+    
+    <div class="section-title">Account</div>
+    <div class="list-group">
+      <div class="list-item">
+        <div class="list-item-left"><div class="list-item-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div> Email</div>
+        <div class="list-item-right">creator@aura.ai</div>
+      </div>
+      <div class="list-item">
+        <div class="list-item-left"><div class="list-item-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div> OpenRouter Key</div>
+        <input class="ios-input" id="key-or" type="password" placeholder="sk-or-v1-..." />
+      </div>
+      <div class="list-item" onclick="openSheet('instructions-sheet')">
+        <div class="list-item-left"><div class="list-item-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg></div> Custom instructions</div>
+        <div class="list-item-right">On <span class="list-item-arrow">›</span></div>
+      </div>
+    </div>
+
+    <div class="section-title">App</div>
+    <div class="list-group">
+      <div class="list-item">
+        <div class="list-item-left"><div class="list-item-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></div> Color Scheme</div>
+        <div class="list-item-right">System <span class="list-item-arrow">›</span></div>
+      </div>
+      <div class="list-item">
+        <div class="list-item-left"><div class="list-item-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div> Location</div>
+        <div class="list-item-right" id="weather-text">Jalandhar, Punjab</div>
+      </div>
+    </div>
+
+    <div class="section-title">Speech</div>
+    <div class="list-group">
+      <div class="list-item" onclick="openSheet('voice-sheet')">
+        <div class="list-item-left"><div class="list-item-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="16" y1="9" x2="16" y2="15"/><line x1="8" y1="9" x2="8" y2="15"/></svg></div> Voice</div>
+        <div class="list-item-right">Breeze <span class="list-item-arrow">›</span></div>
+      </div>
+    </div>
+
+    <div class="section-title">About</div>
+    <div class="list-group">
+      <div class="list-item" onclick="renderHistoryList(); openSheet('history-sheet');">
+        <div class="list-item-left"><div class="list-item-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div> Chat History</div>
+        <div class="list-item-right"><span class="list-item-arrow">›</span></div>
+      </div>
+      <div class="list-item" onclick="clearChat()">
+        <div class="list-item-left" style="color: #ff3b30;"><div class="list-item-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></div> Reset Conversation</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- CUSTOM INSTRUCTIONS SHEET -->
+<div class="sheet" id="instructions-sheet" style="z-index: 110;">
+  <div class="sheet-header">
+    <div class="close-btn" style="opacity:0;">×</div>
+    <div class="sheet-title">Custom instructions</div>
+    <div class="close-btn" onclick="saveSettings(); document.getElementById('instructions-sheet').classList.remove('show');">×</div>
+  </div>
+  <div class="sheet-scroll">
+    <div class="section-title">What would you like Aura to know?</div>
+    <textarea class="ios-textarea" id="sys-prompt" placeholder="Set system prompt..."></textarea>
+  </div>
+</div>
+
+<!-- HISTORY SHEET -->
+<div class="sheet" id="history-sheet" style="z-index: 110;">
+  <div class="sheet-header">
+    <div class="close-btn" style="opacity:0;">×</div>
+    <div class="sheet-title">Chat History</div>
+    <div class="close-btn" onclick="document.getElementById('history-sheet').classList.remove('show');">×</div>
+  </div>
+  <div class="sheet-scroll">
+    <div class="list-group" id="history-list">
+      <!-- Populated -->
+    </div>
+  </div>
+</div>
+
+<!-- VOICE MOCK SHEET -->
+<div class="sheet" id="voice-sheet" style="z-index: 120; background: #000; color: #fff;">
+  <div class="sheet-header" style="background: #000; border:none;">
+    <div class="close-btn" style="background: rgba(255,255,255,0.2); color:#fff;" onclick="document.getElementById('voice-sheet').classList.remove('show');">×</div>
+    <div class="sheet-title" style="color:#fff;">Choose a voice</div>
+    <div class="close-btn" style="opacity:0;">×</div>
+  </div>
+  <div class="sheet-scroll" style="display:flex; flex-direction:column; align-items:center; padding-top:40px;">
+    <div style="display:flex; gap:10px; align-items:center; margin-bottom:40px;">
+      <div style="width:40px; height:40px; border-radius:50%; background:#fff;"></div>
+      <div style="width:50px; height:50px; border-radius:50%; background:#fff;"></div>
+      <div style="width:60px; height:80px; border-radius:30px; background:#fff;"></div>
+      <div style="width:50px; height:50px; border-radius:50%; background:#fff;"></div>
+    </div>
+    
+    <div style="width:100%; max-width:300px;">
+      <div style="padding:16px; background:#1c1c1e; border-radius:12px; margin-bottom:10px; text-align:center;">Breeze</div>
+      <div style="padding:16px; background:#1c1c1e; border-radius:12px; margin-bottom:10px; text-align:center;">Cove</div>
+      <div style="padding:16px; background:#1c1c1e; border-radius:12px; margin-bottom:10px; text-align:center; display:flex; justify-content:center; align-items:center; gap:8px;">Juniper <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+    </div>
+    
+    <button style="width:100%; max-width:300px; padding:16px; background:#fff; color:#000; border-radius:12px; border:none; font-size:16px; font-weight:600; margin-top:20px;" onclick="document.getElementById('voice-sheet').classList.remove('show');">Confirm</button>
+  </div>
+</div>
+
+<script>
+  // State
+  let currentSessionId = null;
+  let messages = [];
+  let sessions = JSON.parse(localStorage.getItem('aura_ios_sess') || '[]');
+  let isLoading = false;
+  let attachedFile = null;
+
+  // Personalization
+  let defaultSys = 'Always be extremely short, sharp, fast, and precise. Go straight to the point without praising. Suggest mechanics and creative twists. Focus on strategy and stylized art. ALWAYS search for and display images from the internet to illustrate explanations, game concepts, or technical steps. Use markdown `![image](url)` for images.';
+  let sysPrompt = localStorage.getItem('aura_ios_sys') || defaultSys;
+  let apiKeys = JSON.parse(localStorage.getItem('aura_ios_keys') || '{"or":""}');
+  let activeModel = localStorage.getItem('aura_ios_model') || 'auto';
+
+  // Models
+  const BUILTIN_MODELS = [
+    { id:'auto', name:'Smart Auto' },
+    { id:'gpt-4o', name:'GPT-4o' },
+    { id:'claude-sonnet-4-5', name:'Claude 3.5 Sonnet' }
+  ];
+
+  const OR_MODELS = [
+    { id:'deepseek/deepseek-r1:free', name:'DeepSeek R1' },
+    { id:'google/gemini-2.0-flash-lite-preview-02-05:free', name:'Gemini 2.0 Flash' }
+  ];
+
+  window.addEventListener('DOMContentLoaded', () => {
+    fetchWeather();
+    
+    document.getElementById('sys-prompt').value = sysPrompt;
+    document.getElementById('key-or').value = apiKeys.or;
+
+    renderModelLists(); updateLabel(); 
+    if(sessions.length > 0) loadSession(sessions[0].id);
+  });
+
+  async function fetchWeather() {
+    try {
+      const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=31.3260&longitude=75.5762&current_weather=true');
+      const data = await res.json();
+      document.getElementById('weather-text').textContent = `${Math.round(data.current_weather.temperature)}°C Jalandhar, Punjab`;
+    } catch(e) { document.getElementById('weather-text').textContent = `--°C Jalandhar, Punjab`; }
+  }
+
+  function handleInput(el) {
+    el.style.height='auto';
+    el.style.height=Math.min(el.scrollHeight,120)+'px';
+    
+    const hasText = el.value.trim().length > 0 || attachedFile !== null;
+    const wrap = document.getElementById('input-wrap');
+    
+    if(hasText) {
+      wrap.classList.add('typing-mode');
+      document.getElementById('send-btn').disabled = false;
+    } else {
+      wrap.classList.remove('typing-mode');
+      document.getElementById('send-btn').disabled = true;
+    }
+  }
+
+  function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      attachedFile = { file: file, base64: e.target.result, type: file.type };
+      const pv = document.getElementById('file-preview');
+      const img = document.getElementById('fp-img');
+      if(file.type.startsWith('image/')) { img.src = e.target.result; img.style.display = 'block'; } 
+      else { img.style.display = 'none'; }
+      document.getElementById('fp-name').textContent = file.name.substring(0, 15) + '...';
+      pv.style.display = 'flex';
+      handleInput(document.getElementById('input'));
+    };
+    reader.readAsDataURL(file);
+    event.target.value = ''; 
+  }
+
+  function removeAttachedFile() {
+    attachedFile = null;
+    document.getElementById('file-preview').style.display = 'none';
+    handleInput(document.getElementById('input'));
+  }
+
+  function renderModelLists() {
+    const query = document.getElementById('model-search').value.toLowerCase();
+    
+    const pModels = BUILTIN_MODELS.filter(m => m.name.toLowerCase().includes(query));
+    const oModels = OR_MODELS.filter(m => m.name.toLowerCase().includes(query));
+
+    const renderList = (models, containerId) => {
+      let html = '';
+      models.forEach(m => {
+        const isActive = activeModel === m.id;
+        html += `
+          <div class="list-item" onclick="selectModel('${m.id}')">
+            <div class="list-item-left">${m.name}</div>
+            <div class="list-item-right">
+              <svg class="model-check" style="${isActive ? 'opacity:1; transform:scale(1);' : ''}" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+          </div>`;
+      });
+      document.getElementById(containerId).innerHTML = html;
+    };
+    renderList(pModels, 'builtin-list');
+    renderList(oModels, 'or-list');
+  }
+
+  function selectModel(id) {
+    activeModel = id;
+    localStorage.setItem('aura_ios_model', id);
+    renderModelLists(); updateLabel(); closeSheets();
+  }
+
+  function updateLabel() {
+    const m = BUILTIN_MODELS.find(x=>x.id===activeModel) || OR_MODELS.find(x=>x.id===activeModel) || {name: activeModel};
+    document.getElementById('active-label').textContent = m.name;
+  }
+
+  function saveSettings() {
+    sysPrompt = document.getElementById('sys-prompt').value;
+    apiKeys.or = document.getElementById('key-or').value.trim();
+    localStorage.setItem('aura_ios_sys', sysPrompt);
+    localStorage.setItem('aura_ios_keys', JSON.stringify(apiKeys));
+    closeSheets(); 
+  }
+
+  function renderHistoryList() {
+    const list = document.getElementById('history-list');
+    list.innerHTML = '';
+    if(sessions.length === 0) { list.innerHTML = '<div class="list-item"><div class="list-item-left" style="color:var(--text-muted)">No history</div></div>'; return; }
+    
+    sessions.forEach(s => {
+      list.innerHTML += `
+        <div class="list-item" onclick="loadSession('${s.id}')">
+          <div class="list-item-left" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:80%;">${s.title}</div>
+          <div class="list-item-right"><span class="list-item-arrow">›</span></div>
+        </div>`;
+    });
+  }
+
+  function newChat() {
+    currentSessionId = null;
+    messages = [];
+    document.getElementById('messages').innerHTML = `
+      <div id="welcome">
+        <div class="logo-center"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+      </div>`;
+    document.getElementById('suggestions').style.transform = 'translateY(0)';
+    document.getElementById('suggestions').style.opacity = '1';
+    document.getElementById('header').classList.remove('scrolled');
+    closeSheets();
+  }
+
+  function clearChat() {
+    localStorage.removeItem('aura_ios_sess');
+    sessions = [];
+    newChat();
+  }
+
+  function loadSession(id) {
+    const session = sessions.find(s => s.id === id);
+    if(session) {
+      currentSessionId = id;
+      messages = [...session.messages];
+      document.getElementById('messages').innerHTML = '';
+      hideSuggestions();
+      messages.forEach(m => {
+        if(m.role === 'user') addBubble(m.uiContent || m.content, 'user', true);
+        else addBubble(m.content, 'ai', true);
+      });
+      scrollToBottom();
+    }
+    closeSheets();
+  }
+
+  function saveCurrentSession() {
+    if(messages.length === 0) return;
+    if(!currentSessionId) {
+      currentSessionId = 'sess_' + Date.now();
+      const firstText = messages[0].content.replace(/\[Attached File:.*?\]/g, '').trim();
+      const title = firstText.substring(0, 30) || 'New Chat';
+      sessions.unshift({ id: currentSessionId, title: title, messages: [], updatedAt: Date.now() });
+    }
+    
+    const idx = sessions.findIndex(s => s.id === currentSessionId);
+    if(idx !== -1) {
+      sessions[idx].messages = [...messages];
+      sessions[idx].updatedAt = Date.now();
+      const s = sessions.splice(idx, 1)[0];
+      sessions.unshift(s);
+      localStorage.setItem('aura_ios_sess', JSON.stringify(sessions));
+    }
+  }
+
+  async function quickSend(text) {
+    document.getElementById('input').value = text;
+    handleInput(document.getElementById('input'));
+    await send();
+  }
+
+  function hideSuggestions() {
+    const s = document.getElementById('suggestions');
+    if(s) {
+      s.style.transform = 'translateY(150%)';
+      s.style.opacity = '0';
+      setTimeout(() => s.style.display = 'none', 400);
+    }
+    const w = document.getElementById('welcome');
+    if(w) w.style.display = 'none';
+  }
+
+  async function send() {
+    if(isLoading) return;
+    const inp = document.getElementById('input');
+    let text = inp.value.trim();
+    let uiText = text;
+
+    if(!text && !attachedFile) return;
+
+    if(attachedFile) {
+      const isImg = attachedFile.type.startsWith('image/');
+      uiText = text + (text ? '<br><br>' : '') + (isImg ? `<img src="${attachedFile.base64}" class="bubble-img">` : `📄 <b>${attachedFile.file.name}</b>`);
+    }
+
+    inp.value=''; removeAttachedFile(); hideSuggestions();
+    
+    addBubble(uiText, 'user');
+    
+    let apiMsg = { role: 'user', content: text };
+    if(attachedFile && attachedFile.type.startsWith('image/') && !BUILTIN_MODELS.find(m => m.id === activeModel)) {
+        apiMsg.content = [
+            { type: "text", text: text || "Analyze this image stylistically." },
+            { type: "image_url", image_url: { url: attachedFile.base64 } }
+        ];
+    } else if (attachedFile) {
+        apiMsg.content += `\n[File Attached: ${attachedFile.file.name}]`;
+    }
+
+    messages.push(apiMsg);
+    messages[messages.length-1].uiContent = uiText; 
+    saveCurrentSession();
+
+    await getResponse();
+  }
+
+  async function getResponse() {
+    isLoading = true;
+    const typing = addTyping();
+    const isBuiltin = BUILTIN_MODELS.some(m => m.id === activeModel);
+    
+    try {
+      const full = sysPrompt ? [{role:'system',content:sysPrompt},...messages.map(m=>({role:m.role,content:m.content}))] : messages.map(m=>({role:m.role,content:m.content}));
+      let reply='';
+      
+      if(isBuiltin) {
+        const opts = activeModel!=='auto'?{model:activeModel}:{};
+        const res = await puter.ai.chat(full, opts);
+        reply = res?.message?.content?.[0]?.text || res?.toString() || 'No response';
+      } else {
+        if(!apiKeys.or) throw new Error("Please add your OpenRouter Key in settings.");
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions',{
+          method:'POST',
+          headers:{'Authorization':`Bearer ${apiKeys.or}`,'Content-Type':'application/json'},
+          body:JSON.stringify({model:activeModel,messages:full})
+        });
+        const d = await res.json();
+        if(d.error) throw new Error(d.error.message);
+        reply = d.choices?.[0]?.message?.content||'No response';
+      }
+      
+      typing.remove();
+      addBubble(reply, 'ai');
+      messages.push({ role: 'assistant', content: reply });
+      saveCurrentSession();
+
+    } catch(e) {
+      typing.remove();
+      addBubble('⚠️ '+e.message, 'ai');
+    }
+    isLoading=false;
+    document.getElementById('send-btn').disabled=false;
+  }
+
+  function addBubble(text, role, instant = false) {
+    const wrap = document.createElement('div');
+    wrap.className = `msg-row ${role}`;
+    if(instant) wrap.style.animation = 'none';
+
+    let html = '';
+    if(role==='ai'){
+      html += `
+        <div class="ai-header">
+          <div class="ai-avatar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <div class="ai-name">Aura</div>
+        </div>`;
+    }
+    
+    // Parse markdown image format
+    const formattedText = text.replace(/!\[([^\]]*)\]\((.*?)\)/g, '<img src="$2" alt="$1" class="bubble-img" onerror="this.style.display=\'none\'">');
+    
+    html += `<div class="bubble">${formattedText}</div>`;
+    wrap.innerHTML = html;
+    
+    document.getElementById('messages').appendChild(wrap);
+    if(!instant) scrollToBottom();
+    return wrap;
+  }
+
+  function addTyping() {
+    const wrap = document.createElement('div');
+    wrap.className='msg-row ai';
+    wrap.innerHTML = `
+        <div class="ai-header">
+          <div class="ai-avatar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <div class="ai-name">Aura</div>
+        </div>
+        <div class="typing"><span></span><span></span><span></span></div>`;
+    document.getElementById('messages').appendChild(wrap);
+    scrollToBottom();
+    return wrap;
+  }
+
+  function scrollToBottom() {
+    const c = document.getElementById('messages');
+    c.scrollTop = c.scrollHeight;
+  }
+
+  function openSheet(id) {
+    if(id === 'settings-sheet') document.getElementById('key-or').value = apiKeys.or;
+    if(id === 'model-sheet') { document.getElementById('model-search').value = ''; renderModelLists(); }
+    document.getElementById(id).classList.add('show');
+    document.getElementById('overlay').classList.add('show');
+  }
+
+  function closeSheets() {
+    document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('show'));
+    document.getElementById('overlay').classList.remove('show');
+  }
+</script>
+</body>
+</html>
